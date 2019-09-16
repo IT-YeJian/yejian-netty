@@ -1,0 +1,5 @@
+Netty使用场景有很多
+1. 作为rpc通信的框架 基于socket
+2. 作为长连接的服务器 websocket ,客户端，服务端
+3. 作为http应用服务器 比如tomcat jetty这样的 但是不会遵循servlet这样的规范
+   有自己的处理方式
