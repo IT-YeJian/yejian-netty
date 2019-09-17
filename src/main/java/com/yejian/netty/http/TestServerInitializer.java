@@ -1,4 +1,4 @@
-package com.yejian.netty;
+package com.yejian.netty.http;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
