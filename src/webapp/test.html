@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket客户端</title>
+</head>
+
+<body>
+
+ <form onsubmit="return false;">
+     <textarea name="message" style="width: 400px;height: 200px"></textarea>
+     <input type="button" value="发送数据" onclick="send(this.form.message.value)"/>
+
+     <h3>服务器输出:</h3>
+     <textarea id="responseText" style="width: 400px; height: 300px"></textarea>
+     <input type="button" value="清空内容" onclick="javascript: document.getElementById('responseText').value=''"/>
+ </form>
+</body>
+</html>
+<script type="text/javascript">
+    var socket;
+
+    if(window.WebSocket){
+        socket = new  WebSocket("ws://localhost:8899/ws");
+        //如果客户端收到服务端的消息后 该方法会被调用
+        socket.onmessage= function (event) {
+            var ta = document.getElementById("responseText");
+            ta.value= ta.value+"\n"+event.data;
+        }
+
+        //链接一旦建立了执行这样一个回调
+        socket.onopen = function (event) {
+            var ta = document.getElementById("responseText");
+            ta.value="连接开启!";
+        }
+
+        socket.onclose = function (event) {
+            var ta = document.getElementById("responseText");
+            ta.value=ta.value+"\n"+"连接关闭!";
+        }
+
+        function send(message) {
+            if(!window.WebSocket){
+                return;
+            }
+            if(socket.readyState == WebSocket.OPEN){ //状态等于连接的话
+               socket.send(message);
+            }else{
+                alert("连接尚未开启！")
+            }
+        }
+    }else {
+        alert('浏览器不支持WebSocket');
+    }
+</script>
