@@ -16,6 +16,7 @@ public class MyServer {
 
 
     public static void main(String[] args) throws InterruptedException {
+        //完成变量的赋值
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workGroup = new NioEventLoopGroup();
 
