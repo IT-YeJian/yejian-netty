@@ -145,5 +145,22 @@ Synchronous Event Demultiplexer(同步事件分离器) 它本身是一个系统�
 netty相比较nio来说 在事件处理器这个角色上就行了一个升级 它为我们开发者提供了大量的回调方法来进行业务员逻辑的处理
 4、Concrete Event Handler(具体事件处理器):它是事件处理器的实现,它本身实现了事件处理器所提供的各个回调方法
 从而实现了特定于业务的逻辑 它本质就是我们所编写的一个处理器实现 MyserverHandler ,它继承了SimpleChannelHandler
+5.Initiation Dispatcher(初始分发器) : 它就是reactor角色 它本身定义了一些规范用来控制事件的调度方式 同时又提供了
+应用进行事件处理器的注册 删除等设施 .它本身是事件处理器的核心所在 ，会通过同步事件分离器来等待事件的发生
+一旦事件发生,它就会先分离出每一个事件 然后调用事件处理器 最后调用相关的回调方法来处理这些事件
+注:调度方式是使用同步事件分离器的selectionKey集合 去遍历
 
-
+-------------------
+Reactor模式的流程
+1.当应用向initiation Dispatcher注册具体的事件处理器时，应用会标识出该事件处理器 希望initiation dispatcher在某个事件发生时向其通知的该事件 该事件 与handle关联
+2.Initiation dispatcher会要求每个事件处理器向其传递内部的handle 该handle向os标识了事件处理器
+3. 当所有的事件处理器注册完毕后 应用会调用handle_event方法来启动initiation dispatcher的事件循环 这时 initiation dispatcher会将每个注册的事件
+处理器的handle合并起来 并使用同步事件分离器 等待这些事件的发生 比如说tcp协议层会使用select同步事件分离器操作来等待客户端发送的数据到达连接的socket handle上
+4.当与某个事件源对应的handle变为ready状态时 比如tcp socket变为等待读状态  同步事件分离器就会通知initiation dispatcher
+5.initiation dispatcher会触发 事件处理器的回调方法 从而响应这个处于ready状态的handle 当事件发生时 initiation dispatcher
+会将被事件源激活的handle作为key来寻找并分发恰当的事件处理器回调方法。
+6.initiation dispatcher会回调事件处理器的handle events回调方法来执行特定于应用的功能.(开发者自己编写的功能) 从而响应这个事件 所发生的事件类型
+可以作为该方法参数 并被方法内部使用来执行额外的特定于服务的分离与分发。
+李狗的图 ： mainReactor就是负责接收请求的  subReactor才是负责处理的 它本质就是workGroup 即IO线程组
+mainReactor(boss) acceptor(本质handler，会在调用bind的时候加入到pipeline的最后一个位置,当前面的handler处理完后,当它收到客户端发过来的请求的时候
+，它就在自己的channelRead中 将客户端的channnel绑定到workgroup中 即subReactor中) subReactor
