@@ -164,3 +164,166 @@ Reactor模式的流程
 李狗的图 ： mainReactor就是负责接收请求的  subReactor才是负责处理的 它本质就是workGroup 即IO线程组
 mainReactor(boss) acceptor(本质handler，会在调用bind的时候加入到pipeline的最后一个位置,当前面的handler处理完后,当它收到客户端发过来的请求的时候
 ，它就在自己的channelRead中 将客户端的channnel绑定到workgroup中 即subReactor中) subReactor
+
+注
+1.一个EventLoopGroup当中包含一个或者多个EventLoop
+2.一个EventLoop在它的整个生命周期中都只会与唯一一个Thread进行绑定
+3.所有有EventLoop所处理的各种IO事件都将在它所关联都那个Thread上进行处理
+4.一个Channel在它都整个生命收起中只会注册在一个EventLoop上
+5.一个EventLoop在运行过程中 会被分配给一个或者多个Channel.
+在第5条 注意 io处理一定不能过于繁重 一般在channelHandler内部可以使用线程池的方式,一般不会立刻返回,
+使得当前的io线程去处理其它的io事件
+
+当你去执行channel上的io操作的时候 netty会判断执行这个操作的这个线程和这个channel所注册的EventLoop里面封装的线程是不是同一个
+如果是 就直接执行 如果不是 netty会以一个任务的形式 将这个任务提交给EventLoop让它去执行, 最终执行这个任务的还是那个EventLoop里
+封装的线程对象.
+
+重要结论：
+在netty中 Channel的实现一定是线程安全的
+基于此 我们可以存储一个channel的引用
+并且在需要向远程端点发送数据时 通过这个引用来调用channel相应方法
+即便 当时有很多线程都在使用它 也不会多线程问题 而且消息一定按照顺序发送出去
+
+我们在业务开发中 不要将长时间执行的耗时任务放到EventLoop的执行队列中 因为它将会一直阻塞该线程所对应的所有channel上的其它执行任务
+如果我们需要进行阻塞调用或者耗时操作 那么我们需要一个专门的EventExecutor(业务线程池)。
+
+通常有两种实现方式
+1.在channelHandler的回调方法中 使用自己定义的业务线程池 这样可以实现异步调用
+2.借助于Netty提供的向channelPipeline添加ChannelHandler时调用addLast方法传递EventExecutor
+默认情况下 调用addLast(handler) ChannelHandler中的回调方法
+都是由IO线程所执行 如果调用了channelPipeline的
+ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
+方法 那么channelhandler中的回调方法就是由参数中的group线程组来执行。
+
+
+jdk所提供的Future只能通过手工方式来去检查执行结果 而这个操作是会阻塞的 netty则对channleFuture进行了增强
+通过ChannelFutureListener以回调方式获取执行结果 去除了手工检查阻塞的操作:
+值得注意的是 ChannelFutureListener的operationComplete方法是由IO线程执行的 因此要注意的是不要在这里执行耗时操作
+ 否则需要通过另外的线程或者线程池来执行
+
+
+ ==========
+ 在netty中有两种发送消息的方式,可以直接写到channel中 也可以写到与channelHandler所关联的
+ ChannelHandlerContext中 对于前一种方式来说 消息会从ChannelPipeline的末尾开始流动
+ 对于后一种方式来说 消息将从channelPipeline中的下一个channelHandler开始流动
+
+ 结论
+ 1. ChannelHandlerContext与 ChannelHandler之间的关联绑定关系是永远不会发送改变的 因此对其进行缓存是没有任何问题的
+ 2.对于与 Channel的同名方法来说  ChannelHandlerContext的方法将会产生更短的事件流 所以我们应该在可能的情况下利用这个特性
+ 来提升性能
+
+ ==================
+ 使用NIO进行文件读取所涉及的步骤
+
+ 1.从fileinputsream 对象获取到channel对象
+ 2.创建bufferr
+ 3.将数据 从channel中读物到buffer对象中
+
+0<=mark<=position<=limit<=capacity
+postion表示正在读写的位置
+limit 表示读的最大位置
+mark 表示做在某个位置标记 方便在读写之后调用reset方法 能重回到标记的位置
+
+flip方法 读写的操作切换之前  都要调用
+
+1.将limit值设为当前的position
+2.将position设置成0
+
+clear方法
+1.表示清空 将limit值设为capacity
+2.将position设置为0
+
+compact 方法
+
+1.将所有未读取的数据复制到buffer起始处
+2.将position设为最后一个未读元素后面
+3.将limit设为capaciy
+4.现在buffer就准备好了 但不会覆盖未读的数据
+
+注意 通过索引来访问byte时并不会改变真是的读索引和写索引
+我们可以通过 ByteBuf的reader()与
+writerIndex方法分别
+直接修改读索引和写索引
+
+Netty ByteBuf所提供的3中缓冲区类型:
+1. heap Buffer
+2. direct Buffer
+3. composite buffer 复合缓冲区 可以容纳 1或者2
+这种是java没有提供的
+
+Heap Buffer(堆缓冲区)
+这是最常用的类型 ByteBuffer将数据存储懂啊jvm的堆空间中 并且将实际的数据存放到
+byte array中实现
+优点 由于数据是存储在jvm的堆中 因此可以快速创建与释放 并且它提供了直接访问内部字节数组的方法
+缺点 每次读写 都需要先将 数据复制到直接缓存区中在进行网络传输
+
+Direct Buffer 直接缓冲区
+
+在堆外 直接分配内存空间 直接缓冲区不会占用堆的容量空间。
+因为它是由操作系统在本地内存进行发数据分配
+
+优点 在使用socket传递数据时 性能很好 因为数据直接位于os的本地内存中
+所以不需要从jvm将数据复制到直接缓存区中
+缺点 因为DirectBuffer 是直接在内存中的 所以内存空间的分配和释放 比堆空间更加复杂
+而且速度要慢一些
+
+Netty通过提供内存池来解决这个问题.直接缓冲区并不支持 通过字节数组的方式访问数据
+
+重点 对于后端的业务消息的编解码来说 推荐使用　HeapByteBuf 对于IO通信线程
+在读写缓冲区时候 推荐使用Direct Buffer
+
+Composite BUffer 复合缓冲区
+
+jdk的ByteBuffer和Netty的Bytebuf之间的差异
+ 1.Netty的ByteBuf采用了读写索引分离的策略 (readerIndex与writerIndex) 一个初始化的ByteBuf
+ 的readerIndex与writeIdex值都为0
+ 2.当读索引与写索引 处于同一个位置时 如果我们继续读取 就会抛出IndexOutBoundException
+ 3.对于ByteBuf的任何读写操作都会分别单独维护读索引和写索引.maxCapacity最大容量限制就是int整型的最大值
+
+ jdk的ByteBuffer的缺点
+ 1。final byte[] hb: 这是jdk的ByteBuffer对象中用于存储数据的对象声明
+ 可以看到 字节数组的声明是final
+ 长度固定不变的
+ 一旦分配好就不能动态扩容与收缩 而且当等待存储的数据字节很大时
+ 就很可能出现IndexOutOfBoundException 如果要预防
+这个异常 需要在存储之前完全确定好字节大小
+
+如果ByteBuffer的空间不足 只有一种解决方案
+创建一个全新的ByteBuffer对象  然后将之前的
+ByteBuffer中的数据复制过去
+这一切都要手动完成
+
+2.ByteBuffer只使用一个position指针来标识位置信息
+在进行读写切换时 需要调用flip方法或者rewind方法
+读写起来不是很方便
+
+Netty的ByteBuf的优点：
+1.存储字节的数组是动态的 其最大默认是Integer.MAX_VALUE
+这里的动态性体现在write方法中的
+
+write方法在执行时 会判断buffer容量
+不足 自动扩容
+2.ByteBuf的读写索引是完全分开的
+使用起来方便
+
+自旋锁 占用cpu 一直 更新
+
+
+AtomicIntegerFieldUpdater要点总结
+
+1 更新期更新的必须是int类型 不能是其它包装类型
+2 更新器更新的必须是volatile类型变量
+3 变量不能是static的必须是实例变量 因为Unsafe.objectFieldOffset()方法不支持静态变量(cas操作本质上是通过对象实例的偏移量来直接进行赋值)
+4 更新器只能修改它可见的范围内的变量 因为更新器是通过反射来得到这个变量 如果这个变量不可见会报错
+如果要更新的变量是包装类型 可以使用AtomicReferenceFieldUpdater
+
+Netty处理器重要概念
+1.Netty的处理器可以分为两类 入站和出战处理器
+2.入站处理器的顶层是ChannelInboundHandler 出战处理器的顶层ChannelOutboundHandler
+3.数据处理时常用的各种编码本质上都是处理器
+4.编码器: 数据在网络中传递 都是以字节流的方式传递 ，将数据由原本的形式转为字节流的操作称为 编码
+  将数据由字节转换为它原本或者其它格式的操作称为 解码
+  编解码 统一称为codec
+5.编码 本质上是一种出站处理器ChannelOutboundHandler
+6.解码 是一种入站处理器ChannelInboundHandler
+7.Netty 编码通常以XXXCoder的命名 解码器以XXXDecoder命名

@@ -32,8 +32,13 @@ public class TestServer {
              */
             serverBootstrap.group(bossGroup, workGroup).channel(NioServerSocketChannel.class)//.handler(LoggingHandler) 这里定义的话和boss那个关联做处理的 比如LoggingHandler
                     .childHandler(new TestServerInitializer());//childHandler 是丢给work做处理的
-
+            /**
+             * 调用sync才是真正确保bind这个操作是完成了的
+             */
             ChannelFuture channelFuture = serverBootstrap.bind(8899).sync();
+            //获取到 channelFuture，channel调用closeFuture 关闭的话， 表示服务器端要等待关闭之后
+            //流程才能往下走,因此调用sync 确保操作完成
+            //一般来说不显示调用closeChannel的话 程序就停在这儿了
             channelFuture.channel().closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();
