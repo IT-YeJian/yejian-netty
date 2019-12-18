@@ -11,14 +11,14 @@ import java.util.UUID;
  * @Author jian.ye
  * @Date 2019/9/17 11:22
  */
-public class MyServerHandler extends SimpleChannelInboundHandler<String> {
+public class MyServerHandler extends SimpleChannelInboundHandler<Long> {
 
 
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, String msg) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, Long msg) throws Exception {
         System.out.println(ctx.channel().remoteAddress()+" , " + msg);
-        ctx.channel().writeAndFlush("from server: "+ UUID.randomUUID());
+      //  ctx.channel().writeAndFlush("from server: "+ UUID.randomUUID());
     }
 
     @Override
