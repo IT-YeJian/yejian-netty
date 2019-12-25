@@ -1,6 +1,6 @@
 package com.yejian.netty.codec;
 
-import com.yejian.netty.socket.MyServerInitializer;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.EventLoopGroup;
