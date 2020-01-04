@@ -211,7 +211,10 @@ jdk所提供的Future只能通过手工方式来去检查执行结果 而这个�
  1. ChannelHandlerContext与 ChannelHandler之间的关联绑定关系是永远不会发送改变的 因此对其进行缓存是没有任何问题的
  2.对于与 Channel的同名方法来说  ChannelHandlerContext的方法将会产生更短的事件流 所以我们应该在可能的情况下利用这个特性
  来提升性能
-
+ChannelHandlerContext 代表了 ChannelHandler 和 ChannelPipeline 之间的关
+联，每当有 ChannelHandler 添加到 ChannelPipeline 中时，都会创建 ChannelHandler-
+Context。ChannelHandlerContext 的主要功能是管理它所关联的 ChannelHandler 和在
+同一个 ChannelPipeline 中的其他 ChannelHandler 之间的交互
  ==================
  使用NIO进行文件读取所涉及的步骤
 
